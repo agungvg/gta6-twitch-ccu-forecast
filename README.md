@@ -27,8 +27,9 @@ Quantiles are `q_tau = p1 * exp(med_h + z_tau * s_h)`. The program runs offline 
 
 ## Validation
 
-- Leave-one-out over the kit's 37 comparable launches: mean pinball loss **0.46** vs the house baseline's **0.93**.
-- The 4 practice launches, scored against SullyGnome's own hourly averages: mean pinball loss **0.21** vs the house baseline's **0.39**.
+- Leave-one-out over the kit's 37 comparable launches: mean pinball loss **0.44** vs the house baseline's **0.93**.
+- The 4 practice launches, scored against SullyGnome's own hourly averages: mean pinball loss **0.20** vs the house baseline's **0.39**.
+- Tuned 2026-11-18 (PC weight 0.35, model sigma 0.25, spread floor 0.2, asymmetric tails 1.2x upper / 0.85x lower); the previous version scored 0.46 / 0.21. Every change was kept only because it improved both the leave-one-out and the practice loss. The house pinball loss is 2x the textbook pinball (verified against the kit's RULES.txt worked example).
 
 ---
 

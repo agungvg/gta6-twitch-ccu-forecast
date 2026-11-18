@@ -25,9 +25,11 @@
 //
 // Validation (leave-one-out over the kit's 37 comparable launches, and
 // the 4 practice launches scored against SullyGnome's own hourly
-// averages): mean pinball loss 0.46 / 0.21 against the house baseline's
-// 0.93 / 0.39. The program reads only its case file, runs offline and
-// deterministically, and uses the standard library only.
+// averages): mean pinball loss 0.44 / 0.20 against the house baseline's
+// 0.93 / 0.39. Tuned 2026-11-18 (PC weight 0.35, model sigma 0.25,
+// spread floor 0.2, asymmetric tails 1.2x / 0.85x); the previous version
+// scored 0.46 / 0.21. The program reads only its case file, runs offline
+// and deterministically, and uses the standard library only.
 
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -43,17 +45,32 @@ const Z = [-1.6448536269514722, -0.6744897501960817, 0, 0.6744897501960817, 1.64
 const BASE_SIGMA = 0.15;
 /** Bandwidth of the Gaussian kernel on ln(hour-1 viewers). */
 const KERNEL_BW = 1.0;
-/** Weight of a launch with a PC version, relative to a console-only launch. */
-const PC_WEIGHT = 0.25;
+/** Weight of a launch with a PC version, relative to a console-only launch.
+ *  Tuned 2026-11-18: 0.35 (was 0.25) — LOO over 37 launches and the 4
+ *  practice launches both improve; 0.25 starved the model of PC-launch
+ *  data on mixed targets, 0.5 diluted the console signal on console targets. */
+const PC_WEIGHT = 0.35;
 /** Weight of an early-access-contaminated or weak launch. */
 const DISCOUNTED_WEIGHT = 0.25;
 /** Widening applied to the empirical spread: the final is a new game. */
 const SPREAD_MULT = 1.1;
 /** Extra log-spread for model error, added in quadrature: even where past
- *  launches agree, GTA VI is a new game and the median can be off. */
-const MODEL_SIGMA = 0.15;
-/** Floor on the log spread of any hour. */
-const SPREAD_FLOOR = 0.1;
+ *  launches agree, GTA VI is a new game and the median can be off.
+ *  Tuned 2026-11-18: 0.25 (was 0.15) — the LOO 90% coverage was 0.75
+ *  against a nominal 0.90, i.e. the intervals were too narrow. */
+const MODEL_SIGMA = 0.25;
+/** Floor on the log spread of any hour.
+ *  Tuned 2026-11-18: 0.2 (was 0.1) — same under-coverage reason. */
+const SPREAD_FLOOR = 0.2;
+/** Asymmetric tails, tuned 2026-11-18: launch days have upside risk (a
+ *  huge streamer goes live, the count spikes) and limited downside (the
+ *  count rarely falls far below hour 1 while the game is fresh), so the
+ *  95% quantile sits further above the median than the 5% sits below it.
+ *  The median log-ratio is also biased low on both evaluation sets
+ *  (actuals above the median in most hours), which the wider upper tail
+ *  absorbs without moving the centre. */
+const UPPER_MULT = 1.2;
+const LOWER_MULT = 0.85;
 /** Largest forecast allowed by the rules. */
 const MAX_VIEWERS = 1_000_000_000;
 
@@ -144,10 +161,13 @@ const hourShape = (
   return { med, spread };
 };
 
-/** The five quantiles of one hour around hour 1's print. */
+/** The five quantiles of one hour around hour 1's print.
+ *  Tails are asymmetric (UPPER_MULT / LOWER_MULT): upside risk exceeds
+ *  downside risk on a launch day. */
 const hourQuantiles = (p1: number, med: number, spread: number): number[] =>
   Z.map((z) => {
-    const q = round2(p1 * Math.exp(med + z * spread));
+    const zz = z >= 0 ? z * UPPER_MULT : z * LOWER_MULT;
+    const q = round2(p1 * Math.exp(med + zz * spread));
     return Math.min(MAX_VIEWERS, Math.max(1, q));
   });
 
